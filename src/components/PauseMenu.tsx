@@ -1,10 +1,12 @@
 interface Props {
+  /** Touch devices have no keyboard, so skip the Esc / P hint. */
+  touch?: boolean;
   onResume: () => void;
   onRestart: () => void;
   onQuit: () => void;
 }
 
-export function PauseMenu({ onResume, onRestart, onQuit }: Props) {
+export function PauseMenu({ touch = false, onResume, onRestart, onQuit }: Props) {
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="pause-title">
       <div className="panel">
@@ -20,7 +22,7 @@ export function PauseMenu({ onResume, onRestart, onQuit }: Props) {
             Quit to menu
           </button>
         </div>
-        <p className="hint">Esc or P to resume</p>
+        {!touch && <p className="hint">Esc or P to resume</p>}
       </div>
     </div>
   );

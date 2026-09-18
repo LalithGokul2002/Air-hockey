@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore, type RefObject } from 'react';
 import { GameEngine } from '../game/GameEngine';
+import type { TableOrientation } from '../game/rendering/Renderer';
 import type { Difficulty, GameSnapshot } from '../types/game';
 
 const IDLE_SNAPSHOT: GameSnapshot = {
@@ -19,21 +20,25 @@ const getIdleSnapshot = () => IDLE_SNAPSHOT;
  * Bridges the imperative engine and React: creates the engine for the canvas,
  * tears it down on unmount, and re-renders only when the engine publishes a snapshot.
  */
-export function useGame(canvasRef: RefObject<HTMLCanvasElement | null>, difficulty: Difficulty) {
+export function useGame(
+  canvasRef: RefObject<HTMLCanvasElement | null>,
+  difficulty: Difficulty,
+  orientation: TableOrientation,
+) {
   const [engine, setEngine] = useState<GameEngine | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const instance = new GameEngine(canvas, difficulty);
+    const instance = new GameEngine(canvas, difficulty, orientation);
     instance.start();
     setEngine(instance);
     return () => {
       instance.destroy();
       setEngine(null);
     };
-  }, [canvasRef, difficulty]);
+  }, [canvasRef, difficulty, orientation]);
 
   const snapshot = useSyncExternalStore(
     engine ? engine.subscribe : subscribeNothing,

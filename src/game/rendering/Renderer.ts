@@ -1,6 +1,8 @@
 import {
   GOAL_LEFT,
   GOAL_RIGHT,
+  PADDLE,
+  PUCK,
   TABLE,
 } from '../config';
 
@@ -11,28 +13,46 @@ import type { CollisionEvent } from '../physics/CollisionSystem';
 import { Vector2 } from '../physics/Vector2';
 
 export const COLORS = {
-  background: '#05060f',
-  surface: '#0a0e22',
-  grid: 'rgba(80, 120, 255, 0.05)',
-  markings: 'rgba(120, 160, 255, 0.28)',
+  surface: '#0a0d16',
+  dots: 'rgba(150, 170, 220, 0.13)',
+  markings: 'rgba(190, 210, 255, 0.32)',
+  centreLine: 'rgba(90, 225, 255, 0.85)',
   wall: '#7c8cff',
   player: '#22d3ee',
-  ai: '#ff2e88',
-  puck: '#fde047',
+  ai: '#ff2d4b',
+  puck: '#ffd23f',
 } as const;
+
+/** Radius of the puck's dark face inside its glowing rim. */
+const PUCK_FACE_RADIUS = PUCK.radius - 5;
+
+/** Thickness of the metal frame around the playing surface, in world units. */
+const FRAME = 22;
 
 /**
  * The slice of world space kept on screen:
- * the table plus both goal pockets.
+ * the table, its frame, and both goal nets.
  */
 const VIEW = {
-  minX: -16,
-  minY: -TABLE.goalDepth - 12,
-  width: TABLE.width + 32,
+  minX: -FRAME - 4,
+  minY: -TABLE.goalDepth - 4,
+  width: TABLE.width + 2 * (FRAME + 4),
   height:
     TABLE.height +
-    2 * (TABLE.goalDepth + 12),
+    2 * (TABLE.goalDepth + 4),
 } as const;
+
+const VIEW_MAX_X =
+  VIEW.minX +
+  VIEW.width;
+
+/**
+ * Portrait: the table's long side runs up the screen (desktop).
+ * Landscape: it runs across the screen (phones and tablets).
+ */
+export type TableOrientation =
+  | 'portrait'
+  | 'landscape';
 
 const TRAIL_LENGTH = 18;
 const TRAIL_SPEED_REFERENCE = 1000;
@@ -141,9 +161,42 @@ export class Renderer {
   private readonly paddleDrawPosition =
     new Vector2();
 
+  // ── Cached artwork ──────────────────────────────────────
+
+  /**
+   * The table never changes during play, so it is painted
+   * once per resize into this off-screen canvas and copied
+   * to the screen each frame with a single drawImage().
+   */
+  private readonly tableLayer =
+    document.createElement('canvas');
+
+  /**
+   * Gradients for the paddles and puck, built once around
+   * the origin; drawing translates to the object instead of
+   * creating new gradients every frame.
+   */
+  private readonly paddleStyles: Record<
+    'player' | 'ai',
+    {
+      color: string;
+      bowl: CanvasGradient;
+      knob: CanvasGradient;
+    }
+  >;
+
+  private readonly puckFace: CanvasGradient;
+
+  private readonly orientation:
+    TableOrientation;
+
   constructor(
     canvas: HTMLCanvasElement,
+    orientation: TableOrientation = 'portrait',
   ) {
+    this.orientation =
+      orientation;
+
     const ctx =
       canvas.getContext('2d');
 
@@ -155,6 +208,30 @@ export class Renderer {
 
     this.canvas = canvas;
     this.ctx = ctx;
+
+    this.paddleStyles = {
+      player: this.createPaddleStyle(
+        COLORS.player,
+        '#8ff3ff',
+      ),
+      ai: this.createPaddleStyle(
+        COLORS.ai,
+        '#ff9aa6',
+      ),
+    };
+
+    this.puckFace =
+      ctx.createRadialGradient(
+        -3,
+        -4,
+        1,
+        0,
+        0,
+        PUCK_FACE_RADIUS,
+      );
+
+    this.puckFace.addColorStop(0, '#4a4128');
+    this.puckFace.addColorStop(1, '#0d0c08');
 
     this.resize();
   }
@@ -219,23 +296,138 @@ export class Renderer {
         cssHeight * this.dpr,
       );
 
+    /*
+     * In landscape the world is drawn rotated 90°, so its
+     * width and height swap places on screen.
+     */
+    const landscape =
+      this.orientation === 'landscape';
+
+    const viewScreenWidth =
+      landscape ? VIEW.height : VIEW.width;
+
+    const viewScreenHeight =
+      landscape ? VIEW.width : VIEW.height;
+
     this.scale =
       Math.min(
-        cssWidth / VIEW.width,
-        cssHeight / VIEW.height,
+        cssWidth / viewScreenWidth,
+        cssHeight / viewScreenHeight,
       );
 
     this.offsetX =
       (
         cssWidth -
-        VIEW.width * this.scale
+        viewScreenWidth * this.scale
       ) / 2;
 
     this.offsetY =
       (
         cssHeight -
-        VIEW.height * this.scale
+        viewScreenHeight * this.scale
       ) / 2;
+
+    this.paintTableLayer();
+  }
+
+  /** Re-render the static table into the off-screen layer at the current size. */
+  private paintTableLayer(): void {
+    const layer =
+      this.tableLayer;
+
+    layer.width =
+      this.canvas.width;
+
+    layer.height =
+      this.canvas.height;
+
+    const layerCtx =
+      layer.getContext('2d');
+
+    if (!layerCtx) {
+      return;
+    }
+
+    this.applyWorldTransform(
+      layerCtx,
+      0,
+      0,
+    );
+
+    paintTable(
+      layerCtx,
+    );
+  }
+
+  /**
+   * World → device-pixel transform, optionally offset (in CSS px) for shake.
+   *
+   * Portrait:  screen = (x, y), the AI at the top.
+   * Landscape: the world turns 90° anticlockwise, so its y axis runs
+   *            left → right (AI on the left, player on the right) and
+   *            its x axis runs bottom → top:
+   *              screenX = offsetX + (y - minY) · scale
+   *              screenY = offsetY + (maxX - x) · scale
+   *
+   * The physics never knows the difference; only drawing and
+   * toWorld() apply the rotation.
+   */
+  private applyWorldTransform(
+    ctx: CanvasRenderingContext2D,
+    offsetX: number,
+    offsetY: number,
+  ): void {
+    const k =
+      this.dpr *
+      this.scale;
+
+    if (
+      this.orientation === 'landscape'
+    ) {
+      ctx.setTransform(
+        0,
+        -k,
+        k,
+        0,
+        this.dpr *
+          (
+            this.offsetX -
+            VIEW.minY *
+              this.scale +
+            offsetX
+          ),
+        this.dpr *
+          (
+            this.offsetY +
+            VIEW_MAX_X *
+              this.scale +
+            offsetY
+          ),
+      );
+
+      return;
+    }
+
+    ctx.setTransform(
+      k,
+      0,
+      0,
+      k,
+      this.dpr *
+        (
+          this.offsetX -
+          VIEW.minX *
+            this.scale +
+          offsetX
+        ),
+      this.dpr *
+        (
+          this.offsetY -
+          VIEW.minY *
+            this.scale +
+          offsetY
+        ),
+    );
   }
 
   /**
@@ -249,6 +441,31 @@ export class Renderer {
   ): Vector2 {
     const rect =
       this.canvas.getBoundingClientRect();
+
+    if (
+      this.orientation === 'landscape'
+    ) {
+      // Inverse of the landscape mapping in applyWorldTransform().
+      const screenX =
+        clientX -
+        rect.left -
+        this.offsetX;
+
+      const screenY =
+        clientY -
+        rect.top -
+        this.offsetY;
+
+      return out.set(
+        VIEW_MAX_X -
+          screenY /
+            this.scale,
+
+        screenX /
+          this.scale +
+          VIEW.minY,
+      );
+    }
 
     return out.set(
       (
@@ -314,28 +531,25 @@ export class Renderer {
           frameSeconds,
       );
 
+    /*
+     * Clear to transparent: the page's own background
+     * shows around the table.
+     */
     ctx.setTransform(
-  1,
-  0,
-  0,
-  1,
-  0,
-  0,
-);
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    );
 
-    ctx.fillStyle =
-      COLORS.background;
-
-    ctx.fillRect(
+    ctx.clearRect(
       0,
       0,
       this.canvas.width,
       this.canvas.height,
     );
-
-    const k =
-      this.dpr *
-      this.scale;
 
     const shakeX =
       (
@@ -351,25 +565,19 @@ export class Renderer {
       ) *
       this.shake;
 
-    ctx.setTransform(
-      k,
-      0,
-      0,
-      k,
-      this.dpr *
-        (
-          this.offsetX -
-          VIEW.minX *
-            this.scale +
-          shakeX
-        ),
-      this.dpr *
-        (
-          this.offsetY -
-          VIEW.minY *
-            this.scale +
-          shakeY
-        ),
+    /*
+     * The pre-painted table, shifted by the shake.
+     */
+    ctx.drawImage(
+      this.tableLayer,
+      this.dpr * shakeX,
+      this.dpr * shakeY,
+    );
+
+    this.applyWorldTransform(
+      ctx,
+      shakeX,
+      shakeY,
     );
 
     const puckPos =
@@ -393,8 +601,6 @@ export class Renderer {
       puckPos,
     );
 
-    this.drawTable();
-
     /*
      * Trail sits behind everything.
      */
@@ -412,13 +618,11 @@ export class Renderer {
 
     this.drawPaddle(
       view.ai,
-      COLORS.ai,
       view.alpha,
     );
 
     this.drawPaddle(
       view.player,
-      COLORS.player,
       view.alpha,
     );
 
@@ -446,292 +650,69 @@ export class Renderer {
     );
   }
 
-  // ── Table ───────────────────────────────────────────────
-
-  private drawTable(): void {
-    const { ctx } =
-      this;
-
-    const {
-      width: W,
-      height: H,
-      goalWidth,
-      goalDepth,
-    } = TABLE;
-
-    ctx.fillStyle =
-      COLORS.surface;
-
-    ctx.fillRect(
-      0,
-      0,
-      W,
-      H,
-    );
-
-    // Faint grid.
-    ctx.strokeStyle =
-      COLORS.grid;
-
-    ctx.lineWidth = 1;
-
-    ctx.beginPath();
-
-    for (
-      let x = 40;
-      x < W;
-      x += 40
-    ) {
-      ctx.moveTo(
-        x,
-        0,
-      );
-
-      ctx.lineTo(
-        x,
-        H,
-      );
-    }
-
-    for (
-      let y = 40;
-      y < H;
-      y += 40
-    ) {
-      ctx.moveTo(
-        0,
-        y,
-      );
-
-      ctx.lineTo(
-        W,
-        y,
-      );
-    }
-
-    ctx.stroke();
-
-    // Goal pockets.
-    ctx.fillStyle =
-      'rgba(255, 46, 136, 0.12)';
-
-    ctx.fillRect(
-      GOAL_LEFT,
-      -goalDepth,
-      goalWidth,
-      goalDepth,
-    );
-
-    ctx.fillStyle =
-      'rgba(34, 211, 238, 0.12)';
-
-    ctx.fillRect(
-      GOAL_LEFT,
-      H,
-      goalWidth,
-      goalDepth,
-    );
-
-    // Centre line, centre circle and goal creases.
-    ctx.strokeStyle =
-      COLORS.markings;
-
-    ctx.lineWidth = 2;
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-      0,
-      H / 2,
-    );
-
-    ctx.lineTo(
-      W,
-      H / 2,
-    );
-
-    ctx.moveTo(
-      W / 2 + 60,
-      H / 2,
-    );
-
-    ctx.arc(
-      W / 2,
-      H / 2,
-      60,
-      0,
-      Math.PI * 2,
-    );
-
-    ctx.moveTo(
-      GOAL_RIGHT,
-      0,
-    );
-
-    ctx.arc(
-      W / 2,
-      0,
-      goalWidth / 2,
-      0,
-      Math.PI,
-    );
-
-    ctx.moveTo(
-      GOAL_LEFT,
-      H,
-    );
-
-    ctx.arc(
-      W / 2,
-      H,
-      goalWidth / 2,
-      Math.PI,
-      Math.PI * 2,
-    );
-
-    ctx.stroke();
-
-    ctx.fillStyle =
-      COLORS.markings;
-
-    ctx.beginPath();
-
-    ctx.arc(
-      W / 2,
-      H / 2,
-      5,
-      0,
-      Math.PI * 2,
-    );
-
-    ctx.fill();
-
-    // Walls, leaving a gap at each goal mouth.
-    ctx.save();
-
-    ctx.lineCap =
-      'round';
-
-    ctx.lineJoin =
-      'round';
-
-    ctx.lineWidth = 4;
-
-    ctx.shadowBlur = 16;
-
-    ctx.strokeStyle =
-      COLORS.wall;
-
-    ctx.shadowColor =
-      COLORS.wall;
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-      GOAL_LEFT,
-      0,
-    );
-
-    ctx.lineTo(
-      0,
-      0,
-    );
-
-    ctx.lineTo(
-      0,
-      H,
-    );
-
-    ctx.lineTo(
-      GOAL_LEFT,
-      H,
-    );
-
-    ctx.moveTo(
-      GOAL_RIGHT,
-      H,
-    );
-
-    ctx.lineTo(
-      W,
-      H,
-    );
-
-    ctx.lineTo(
-      W,
-      0,
-    );
-
-    ctx.lineTo(
-      GOAL_RIGHT,
-      0,
-    );
-
-    ctx.stroke();
-
-    this.strokeGoal(
-      0,
-      -goalDepth,
-      COLORS.ai,
-    );
-
-    this.strokeGoal(
-      H,
-      H + goalDepth,
-      COLORS.player,
-    );
-
-    ctx.restore();
-  }
-
-  private strokeGoal(
-    lineY: number,
-    backY: number,
-    color: string,
-  ): void {
-    const { ctx } =
-      this;
-
-    ctx.strokeStyle =
-      color;
-
-    ctx.shadowColor =
-      color;
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-      GOAL_LEFT,
-      lineY,
-    );
-
-    ctx.lineTo(
-      GOAL_LEFT,
-      backY,
-    );
-
-    ctx.lineTo(
-      GOAL_RIGHT,
-      backY,
-    );
-
-    ctx.lineTo(
-      GOAL_RIGHT,
-      lineY,
-    );
-
-    ctx.stroke();
-  }
-
   // ── Paddles ─────────────────────────────────────────────
 
+  private createPaddleStyle(
+    color: string,
+    light: string,
+  ): {
+    color: string;
+    bowl: CanvasGradient;
+    knob: CanvasGradient;
+  } {
+    const r =
+      PADDLE.radius;
+
+    const bowl =
+      this.ctx.createRadialGradient(
+        -r * 0.2,
+        -r * 0.22,
+        2,
+        0,
+        0,
+        r * 0.8,
+      );
+
+    bowl.addColorStop(0, '#1d2434');
+    bowl.addColorStop(1, '#06080e');
+
+    const knob =
+      this.ctx.createRadialGradient(
+        -r * 0.14,
+        -r * 0.16,
+        1,
+        0,
+        0,
+        r * 0.42,
+      );
+
+    knob.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+    knob.addColorStop(0.14, light);
+    knob.addColorStop(0.5, '#141a28');
+    knob.addColorStop(1, '#05070c');
+
+    return {
+      color,
+      bowl,
+      knob,
+    };
+  }
+
+  /**
+   * Neon mallet seen from above: glowing rim, dark bowl,
+   * glossy knob. Drawn around the origin after translating.
+   */
   private drawPaddle(
     paddle: Paddle,
-    color: string,
     alpha: number,
   ): void {
     const { ctx } =
       this;
+
+    const style =
+      this.paddleStyles[
+        paddle.side
+      ];
 
     const pos =
       this.interpolate(
@@ -746,62 +727,52 @@ export class Renderer {
 
     ctx.save();
 
-    ctx.shadowBlur = 24;
-
-    ctx.shadowColor =
-      color;
-
-    ctx.fillStyle =
-      '#0b1026';
-
-    ctx.beginPath();
-
-    ctx.arc(
+    ctx.translate(
       pos.x,
       pos.y,
-      r,
-      0,
-      Math.PI * 2,
     );
 
-    ctx.fill();
+    // Contact shadow.
+    ctx.fillStyle =
+      'rgba(0, 0, 0, 0.45)';
+
+    fillCircle(ctx, 3, 5, r);
+
+    // Neon rim.
+    ctx.shadowBlur = 26;
+    ctx.shadowColor = style.color;
+    ctx.fillStyle = style.color;
+
+    fillCircle(ctx, 0, 0, r);
+
+    ctx.shadowBlur = 0;
+
+    // Bowl.
+    ctx.fillStyle =
+      style.bowl;
+
+    fillCircle(ctx, 0, 0, r * 0.78);
 
     ctx.strokeStyle =
-      color;
+      'rgba(255, 255, 255, 0.35)';
 
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 1.5;
 
-    ctx.beginPath();
+    strokeCircle(ctx, 0, 0, r * 0.93);
 
-    ctx.arc(
-      pos.x,
-      pos.y,
-      r - 2.5,
-      0,
-      Math.PI * 2,
-    );
+    // Knob.
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillStyle = style.knob;
 
-    ctx.stroke();
-
-    ctx.lineWidth = 3;
-
-    ctx.beginPath();
-
-    ctx.arc(
-      pos.x,
-      pos.y,
-      r * 0.42,
-      0,
-      Math.PI * 2,
-    );
-
-    ctx.stroke();
+    fillCircle(ctx, 0, 0, r * 0.42);
 
     ctx.restore();
   }
 
   // ── Puck ────────────────────────────────────────────────
 
+  /** Dark disc with a glowing yellow rim. */
   private drawPuck(
     pos: Vector2,
     r: number,
@@ -811,44 +782,38 @@ export class Renderer {
 
     ctx.save();
 
-    ctx.shadowBlur = 22;
-
-    ctx.shadowColor =
-      COLORS.puck;
+    ctx.translate(
+      pos.x,
+      pos.y,
+    );
 
     ctx.fillStyle =
-      COLORS.puck;
+      'rgba(0, 0, 0, 0.5)';
 
-    ctx.beginPath();
+    fillCircle(ctx, 2, 3, r);
 
-    ctx.arc(
-      pos.x,
-      pos.y,
-      r,
-      0,
-      Math.PI * 2,
-    );
+    ctx.shadowBlur = 22;
+    ctx.shadowColor = COLORS.puck;
+    ctx.strokeStyle = COLORS.puck;
+    ctx.lineWidth = 5;
 
-    ctx.fill();
+    strokeCircle(ctx, 0, 0, r - 2.5);
 
-    ctx.restore();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle =
+      this.puckFace;
+
+    fillCircle(ctx, 0, 0, PUCK_FACE_RADIUS);
 
     ctx.strokeStyle =
-      'rgba(5, 6, 15, 0.45)';
+      'rgba(255, 210, 63, 0.35)';
 
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.2;
 
-    ctx.beginPath();
+    strokeCircle(ctx, 0, 0, r * 0.5);
 
-    ctx.arc(
-      pos.x,
-      pos.y,
-      r * 0.55,
-      0,
-      Math.PI * 2,
-    );
-
-    ctx.stroke();
+    ctx.restore();
   }
 
   // ── Trail ───────────────────────────────────────────────
@@ -1214,4 +1179,422 @@ export class Renderer {
 
     ctx.globalAlpha = 1;
   }
+}
+
+// ── Static table artwork ─────────────────────────────────
+//
+// Painted once per resize into the renderer's off-screen
+// layer, never per frame, so it can afford gradients,
+// glows and a few thousand air-hole dots.
+
+/** Radius of the crease arc in front of each goal. */
+const CREASE_RADIUS = 122;
+
+/** Radius of the centre circle. */
+const CENTRE_CIRCLE_RADIUS = 70;
+
+/** Where the neon strips run along the frame, measured from each end. */
+const RAIL_NEON_START = 30;
+const RAIL_NEON_END = 190;
+
+function paintTable(
+  ctx: CanvasRenderingContext2D,
+): void {
+  paintFrame(ctx);
+  paintSurface(ctx);
+  paintMarkings(ctx);
+  paintGoal(ctx, 'ai');
+  paintGoal(ctx, 'player');
+  paintRailNeon(ctx);
+  paintBolts(ctx);
+}
+
+function paintFrame(
+  ctx: CanvasRenderingContext2D,
+): void {
+  const {
+    width: W,
+    height: H,
+  } = TABLE;
+
+  ctx.save();
+
+  const metal =
+    ctx.createLinearGradient(
+      -FRAME,
+      0,
+      W + FRAME,
+      0,
+    );
+
+  metal.addColorStop(0, '#2c3342');
+  metal.addColorStop(0.07, '#10131b');
+  metal.addColorStop(0.5, '#1a1f2a');
+  metal.addColorStop(0.93, '#10131b');
+  metal.addColorStop(1, '#2c3342');
+
+  ctx.beginPath();
+  ctx.roundRect(-FRAME, -FRAME, W + 2 * FRAME, H + 2 * FRAME, 30);
+  ctx.fillStyle = metal;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+  ctx.shadowBlur = 30;
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Inner lip where the frame meets the surface.
+  ctx.beginPath();
+  ctx.roundRect(-6, -6, W + 12, H + 12, 20);
+  ctx.strokeStyle = 'rgba(200, 215, 240, 0.2)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function paintSurface(
+  ctx: CanvasRenderingContext2D,
+): void {
+  const {
+    width: W,
+    height: H,
+  } = TABLE;
+
+  ctx.save();
+
+  ctx.beginPath();
+  ctx.roundRect(0, 0, W, H, 16);
+  ctx.clip();
+
+  ctx.fillStyle = COLORS.surface;
+  ctx.fillRect(0, 0, W, H);
+
+  // Light spilling from the neon: pink at the AI end, cyan at the player's.
+  paintGlow(ctx, 0, 0, 260, 'rgba(255, 45, 75, 0.24)');
+  paintGlow(ctx, W, 0, 260, 'rgba(255, 45, 75, 0.24)');
+  paintGlow(ctx, W / 2, 0, 200, 'rgba(255, 45, 75, 0.1)');
+  paintGlow(ctx, 0, H, 260, 'rgba(34, 211, 238, 0.24)');
+  paintGlow(ctx, W, H, 260, 'rgba(34, 211, 238, 0.24)');
+  paintGlow(ctx, W / 2, H, 200, 'rgba(34, 211, 238, 0.1)');
+
+  // Soft reflections of overhead lights across the polished surface.
+  const streaks =
+    ctx.createLinearGradient(0, 0, 0, H);
+
+  const clear = 'rgba(0, 0, 0, 0)';
+
+  streaks.addColorStop(0, clear);
+  streaks.addColorStop(0.15, clear);
+  streaks.addColorStop(0.19, 'rgba(255, 120, 135, 0.08)');
+  streaks.addColorStop(0.25, clear);
+  streaks.addColorStop(0.37, clear);
+  streaks.addColorStop(0.42, 'rgba(175, 205, 255, 0.07)');
+  streaks.addColorStop(0.47, clear);
+  streaks.addColorStop(0.55, clear);
+  streaks.addColorStop(0.59, 'rgba(175, 205, 255, 0.06)');
+  streaks.addColorStop(0.64, clear);
+  streaks.addColorStop(0.76, clear);
+  streaks.addColorStop(0.81, 'rgba(90, 205, 255, 0.08)');
+  streaks.addColorStop(0.86, clear);
+  streaks.addColorStop(1, clear);
+
+  ctx.fillStyle = streaks;
+  ctx.fillRect(0, 0, W, H);
+
+  // Air holes.
+  ctx.fillStyle = COLORS.dots;
+
+  for (let x = 12; x < W; x += 16) {
+    for (let y = 12; y < H; y += 16) {
+      ctx.fillRect(x - 0.8, y - 0.8, 1.6, 1.6);
+    }
+  }
+
+  ctx.restore();
+}
+
+function paintMarkings(
+  ctx: CanvasRenderingContext2D,
+): void {
+  const {
+    width: W,
+    height: H,
+  } = TABLE;
+
+  ctx.save();
+
+  // Faint line down the long axis.
+  ctx.strokeStyle = 'rgba(160, 185, 235, 0.12)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(W / 2, 0);
+  ctx.lineTo(W / 2, H);
+  ctx.stroke();
+
+  // Centre circle.
+  paintGlow(ctx, W / 2, H / 2, CENTRE_CIRCLE_RADIUS, 'rgba(120, 150, 255, 0.1)');
+
+  ctx.strokeStyle = COLORS.markings;
+  ctx.lineWidth = 1.5;
+  strokeCircle(ctx, W / 2, H / 2, CENTRE_CIRCLE_RADIUS);
+
+  ctx.strokeStyle = 'rgba(190, 210, 255, 0.12)';
+  ctx.lineWidth = 1;
+  strokeCircle(ctx, W / 2, H / 2, CENTRE_CIRCLE_RADIUS - 8);
+
+  // Creases, in each side's colour.
+  paintCrease(ctx, 0, 0, Math.PI, COLORS.ai);
+  paintCrease(ctx, H, Math.PI, Math.PI * 2, COLORS.player);
+
+  // Glowing dashed centre line.
+  ctx.setLineDash([12, 9]);
+  ctx.strokeStyle = COLORS.centreLine;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = COLORS.player;
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.moveTo(0, H / 2);
+  ctx.lineTo(W, H / 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function paintCrease(
+  ctx: CanvasRenderingContext2D,
+  lineY: number,
+  startAngle: number,
+  endAngle: number,
+  color: string,
+): void {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.85;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(TABLE.width / 2, lineY, CREASE_RADIUS, startAngle, endAngle);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** A netted goal pocket behind the goal line, cutting through the frame. */
+function paintGoal(
+  ctx: CanvasRenderingContext2D,
+  side: 'player' | 'ai',
+): void {
+  const {
+    height: H,
+    goalWidth,
+    goalDepth,
+  } = TABLE;
+
+  const atTop =
+    side === 'ai';
+
+  const color =
+    atTop ? COLORS.ai : COLORS.player;
+
+  const mouthY =
+    atTop ? 0 : H;
+
+  const backY =
+    atTop ? -goalDepth : H + goalDepth;
+
+  const top =
+    Math.min(mouthY, backY);
+
+  ctx.save();
+
+  ctx.beginPath();
+  ctx.rect(GOAL_LEFT, top, goalWidth, goalDepth);
+  ctx.fillStyle = '#04060b';
+  ctx.fill();
+  ctx.clip();
+
+  // Net mesh.
+  ctx.strokeStyle = 'rgba(200, 210, 235, 0.2)';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+
+  for (let d = -goalDepth; d < goalWidth + goalDepth; d += 7) {
+    ctx.moveTo(GOAL_LEFT + d, top);
+    ctx.lineTo(GOAL_LEFT + d + goalDepth, top + goalDepth);
+    ctx.moveTo(GOAL_LEFT + d + goalDepth, top);
+    ctx.lineTo(GOAL_LEFT + d, top + goalDepth);
+  }
+
+  ctx.stroke();
+
+  // Neon light falling into the net from the mouth.
+  const light =
+    ctx.createLinearGradient(0, mouthY, 0, backY);
+
+  light.addColorStop(0, atTop ? 'rgba(255, 45, 75, 0.35)' : 'rgba(34, 211, 238, 0.35)');
+  light.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+  ctx.fillStyle = light;
+  ctx.fillRect(GOAL_LEFT, top, goalWidth, goalDepth);
+
+  ctx.restore();
+
+  // Glowing goal frame.
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.moveTo(GOAL_LEFT, mouthY);
+  ctx.lineTo(GOAL_LEFT, backY);
+  ctx.lineTo(GOAL_RIGHT, backY);
+  ctx.lineTo(GOAL_RIGHT, mouthY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Neon strips on the frame: pink around the AI end, cyan around the player's. */
+function paintRailNeon(
+  ctx: CanvasRenderingContext2D,
+): void {
+  const {
+    width: W,
+    height: H,
+  } = TABLE;
+
+  const left = -FRAME / 2;
+  const right = W + FRAME / 2;
+  const top = -FRAME / 2;
+  const bottom = H + FRAME / 2;
+  const goalGap = 26;
+
+  for (const [color, sign, end] of [
+    [COLORS.ai, 1, 0],
+    [COLORS.player, -1, H],
+  ] as const) {
+    const y1 = end + sign * RAIL_NEON_START;
+    const y2 = end + sign * RAIL_NEON_END;
+    const endY = end === 0 ? top : bottom;
+
+    paintNeonLine(ctx, left, y1, left, y2, color);
+    paintNeonLine(ctx, right, y1, right, y2, color);
+    paintNeonLine(ctx, RAIL_NEON_START + 6, endY, GOAL_LEFT - goalGap, endY, color);
+    paintNeonLine(ctx, GOAL_RIGHT + goalGap, endY, W - RAIL_NEON_START - 6, endY, color);
+  }
+}
+
+function paintBolts(
+  ctx: CanvasRenderingContext2D,
+): void {
+  const {
+    width: W,
+    height: H,
+  } = TABLE;
+
+  const edge = -FRAME / 2;
+
+  const bolts: readonly [number, number][] = [
+    // On the frame.
+    [edge, H / 2],
+    [W - edge, H / 2],
+    [edge, H * 0.36],
+    [W - edge, H * 0.36],
+    [edge, H * 0.64],
+    [W - edge, H * 0.64],
+    // Surface corners.
+    [14, 14],
+    [W - 14, 14],
+    [14, H - 14],
+    [W - 14, H - 14],
+  ];
+
+  ctx.save();
+
+  for (const [x, y] of bolts) {
+    ctx.fillStyle = '#2a3140';
+    fillCircle(ctx, x, y, 3.2);
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 1;
+    strokeCircle(ctx, x, y, 3.2);
+
+    ctx.fillStyle = '#0a0d14';
+    fillCircle(ctx, x, y, 1.1);
+  }
+
+  ctx.restore();
+}
+
+function paintNeonLine(
+  ctx: CanvasRenderingContext2D,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  color: string,
+): void {
+  ctx.save();
+  ctx.lineCap = 'round';
+
+  // Coloured glow...
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 7;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 24;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+
+  // ...around a white-hot core.
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function paintGlow(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  color: string,
+): void {
+  const glow =
+    ctx.createRadialGradient(x, y, 0, x, y, radius);
+
+  glow.addColorStop(0, color);
+  glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+}
+
+function fillCircle(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+): void {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function strokeCircle(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+): void {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.stroke();
 }

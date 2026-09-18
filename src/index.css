@@ -5,12 +5,13 @@
   --text: #e6e9ff;
   --muted: #8a91c2;
   --player: #22d3ee;
-  --ai: #ff2e88;
+  --ai: #ff2d4b;
   --puck: #fde047;
   --accent: #7c8cff;
 
   --font-display: 'Orbitron', system-ui, sans-serif;
   --font-body: 'Rajdhani', system-ui, sans-serif;
+  --font-brush: 'Permanent Marker', 'Rajdhani', cursive;
 
   color-scheme: dark;
 }
@@ -50,7 +51,7 @@ button {
 
 .text-ai {
   color: var(--ai);
-  text-shadow: 0 0 18px rgba(255, 46, 136, 0.55);
+  text-shadow: 0 0 18px rgba(255, 45, 75, 0.55);
 }
 
 /* ── Buttons ─────────────────────────────────────────── */
@@ -119,219 +120,122 @@ button {
   color: var(--text);
 }
 
-/* ── Main menu ───────────────────────────────────────── */
-
-.menu {
-  min-height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 24px 16px;
-  overflow-y: auto;
-}
-
-.menu-panel {
-  width: min(420px, 100%);
-  text-align: center;
-}
-
-.title {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: clamp(34px, 9vw, 52px);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin: 0;
-  line-height: 1.05;
-  color: #fff;
-  text-shadow:
-    0 0 12px rgba(34, 211, 238, 0.8),
-    0 0 40px rgba(34, 211, 238, 0.4);
-}
-
-.title-sub {
-  display: block;
-  font-size: 0.5em;
-  letter-spacing: 0.4em;
-  margin-top: 6px;
-  color: var(--ai);
-  text-shadow:
-    0 0 12px rgba(255, 46, 136, 0.8),
-    0 0 30px rgba(255, 46, 136, 0.4);
-}
-
-.tagline {
-  color: var(--muted);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  font-size: 13px;
-  margin: 14px 0 28px;
-}
-
-.difficulty {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px;
-  margin: 0;
-  display: grid;
-  gap: 6px;
-  background: var(--panel);
-  text-align: left;
-}
-
-.difficulty legend {
-  font-family: var(--font-display);
-  font-size: 12px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 0 8px;
-}
-
-.difficulty-option {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 12px;
-  align-items: center;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.difficulty-option:hover {
-  background: rgba(124, 140, 255, 0.08);
-}
-
-.difficulty-option.is-selected {
-  border-color: rgba(255, 46, 136, 0.5);
-  background: rgba(255, 46, 136, 0.08);
-}
-
-.difficulty-option input {
-  grid-row: span 2;
-  accent-color: var(--ai);
-  width: 18px;
-  height: 18px;
-  margin: 0;
-}
-
-.difficulty-name {
-  font-weight: 700;
-  font-size: 18px;
-}
-
-.difficulty-desc {
-  color: var(--muted);
-  font-size: 15px;
-}
-
-.help {
-  text-align: left;
-  margin: 16px 0 0;
-  padding: 16px 16px 16px 34px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--panel);
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.help li + li {
-  margin-top: 6px;
-}
-
 /* ── Game screen ─────────────────────────────────────── */
 
 .game-screen {
   height: 100%;
   display: flex;
   flex-direction: column;
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 0%, rgba(255, 45, 75, 0.16), transparent 70%),
+    radial-gradient(ellipse 60% 45% at 50% 100%, rgba(34, 211, 238, 0.14), transparent 70%),
+    radial-gradient(ellipse 90% 80% at 50% 50%, #0b0f1c 0%, #05060d 70%, #020308 100%);
 }
 
+/* ── HUD ─────────────────────────────────────────────── */
+
+/* One compact row, so the table gets as much height as possible. */
 .hud {
+  width: min(760px, 100%);
+  margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 12px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(5, 6, 15, 0.8);
+  padding: 10px 16px 2px;
 }
 
 .hud-side {
   display: flex;
-  flex-direction: column;
-  line-height: 1;
+  align-items: center;
+  gap: 12px;
 }
 
+/* Mirror the AI block: tile on the outside edge, label towards the middle. */
 .hud-player {
-  align-items: flex-end;
+  flex-direction: row-reverse;
 }
 
 .hud-label {
-  font-size: 13px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 15px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 4px;
 }
 
+.hud-label-tag {
+  font-size: 0.85em;
+  transform: translateY(-0.35em);
+}
+
+.hud-ai .hud-label {
+  color: #ff5a6e;
+  text-shadow: 0 0 10px rgba(255, 45, 75, 0.6);
+}
+
+.hud-player .hud-label {
+  color: #5fe4ff;
+  text-shadow: 0 0 10px rgba(34, 211, 238, 0.6);
+}
+
+/* Score tile: solid neon square with a dark digit. */
 .hud-score {
+  min-width: 50px;
+  height: 50px;
+  padding: 0 8px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
   font-family: var(--font-display);
   font-weight: 900;
-  font-size: clamp(30px, 7vw, 42px);
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+  color: #07080f;
 }
 
 .hud-ai .hud-score {
-  color: var(--ai);
-  text-shadow: 0 0 16px rgba(255, 46, 136, 0.6);
+  background: linear-gradient(180deg, #ff5c74, #ff2d4b);
+  box-shadow:
+    0 0 14px rgba(255, 45, 75, 0.8),
+    0 0 34px rgba(255, 45, 75, 0.4);
 }
 
 .hud-player .hud-score {
-  color: var(--player);
-  text-shadow: 0 0 16px rgba(34, 211, 238, 0.6);
+  background: linear-gradient(180deg, #6ff0ff, #22d3ee);
+  box-shadow:
+    0 0 14px rgba(34, 211, 238, 0.8),
+    0 0 34px rgba(34, 211, 238, 0.4);
 }
 
 .hud-center {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .hud-timer {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
+  color: #eaf6ff;
+  text-shadow:
+    0 0 10px rgba(140, 200, 255, 0.7),
+    0 0 26px rgba(90, 160, 255, 0.35);
 }
 
 .hud-target {
-  font-size: 12px;
-  color: var(--muted);
-  letter-spacing: 0.14em;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-}
-
-.hud-pause {
-  margin-top: 4px;
-  width: 34px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: transparent;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.hud-pause:hover:not(:disabled) {
-  background: rgba(124, 140, 255, 0.14);
-}
-
-.hud-pause:disabled {
-  opacity: 0.3;
-  cursor: default;
+  color: #a9c4ff;
 }
 
 .arena {
@@ -348,6 +252,47 @@ button {
   touch-action: none;
 }
 
+.game-hints {
+  padding: 4px 16px 10px;
+}
+
+@media (max-width: 520px) {
+  .hud-side {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .hud-player {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .hud-label {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+  }
+
+  .hud-score {
+    min-width: 40px;
+    height: 40px;
+    font-size: 24px;
+  }
+
+  .hud-timer {
+    font-size: 24px;
+  }
+
+  .hud-target {
+    font-size: 11px;
+  }
+
+  /* No mouse hints on phones; the screen is better spent on the table. */
+  .game-hints {
+    display: none;
+  }
+}
+
 /* ── Overlays ────────────────────────────────────────── */
 
 .banner {
@@ -360,11 +305,44 @@ button {
   font-weight: 900;
 }
 
+/* Countdown and GO! share the hand-painted neon look. */
+.banner-countdown,
+.banner-go {
+  font-family: var(--font-brush);
+  font-weight: 400;
+  color: #eef8ff;
+  text-shadow:
+    0 0 12px rgba(120, 190, 255, 0.95),
+    0 0 36px rgba(60, 140, 255, 0.6);
+}
+
 .banner-countdown {
-  font-size: clamp(64px, 18vw, 120px);
-  color: #fff;
-  text-shadow: 0 0 30px rgba(124, 140, 255, 0.9);
+  font-size: clamp(64px, 14vw, 120px);
   animation: pop 1s ease-out both;
+}
+
+.banner-go {
+  font-size: clamp(60px, 12vw, 110px);
+  animation: go 0.9s ease-out both;
+}
+
+@keyframes go {
+  0% {
+    opacity: 0;
+    transform: skewX(-8deg) scale(1.9);
+  }
+  20% {
+    opacity: 1;
+    transform: skewX(-8deg) scale(1);
+  }
+  70% {
+    opacity: 1;
+    transform: skewX(-8deg) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: skewX(-8deg) scale(1.2);
+  }
 }
 
 .banner-goal {
@@ -382,8 +360,12 @@ button {
     opacity: 1;
     transform: scale(1);
   }
+  75% {
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
   100% {
-    opacity: 0.2;
+    opacity: 0;
     transform: scale(0.9);
   }
 }

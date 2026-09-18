@@ -1,0 +1,431 @@
+/* ── Main menu ────────────────────────────────────────────
+ * Layout: the arcade photo (public/menu-bg.png) fills the screen,
+ * with a centred column of UI (.menu-content) on top.
+ */
+
+/* Title font (Typodermic). The file lives in public/fonts/. */
+@font-face {
+  font-family: 'Ethnocentric';
+  src: url('/fonts/ethnocentric.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+.menu {
+  --menu-cyan: #37d7ff;
+  --menu-blue: #2f8bff;
+  --menu-pink: #ff2e88;
+  --menu-text: #eef2ff;
+  --menu-muted: #aeb6d6;
+  --font-title: 'Ethnocentric', 'Orbitron', system-ui, sans-serif;
+
+  position: relative;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  isolation: isolate;
+  /*
+   * The photo is anchored 74% down, where the table's centre line runs,
+   * so that line stays behind the Play button however the screen's shape
+   * crops it. The gradients underneath only show if the image is missing.
+   */
+  background:
+    url('/menu-bg.png') center 74% / cover no-repeat,
+    radial-gradient(ellipse 45% 55% at 12% 30%, rgba(40, 110, 255, 0.28), transparent 70%),
+    radial-gradient(ellipse 45% 55% at 88% 30%, rgba(255, 40, 110, 0.24), transparent 70%),
+    linear-gradient(180deg, #080b16 0%, #05060d 60%, #030409 100%);
+}
+
+.menu-content {
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(10px, 2vh, 28px) 16px clamp(16px, 3vh, 28px);
+  text-align: center;
+}
+
+/* ── Title ──────────────────────────────────────────────── */
+
+.menu-title {
+  margin: 0 0 clamp(20px, 4vh, 40px);
+  font-family: var(--font-title);
+  font-weight: 400;
+  /* Ethnocentric is very wide, so it runs smaller than a normal title face. */
+  font-size: clamp(30px, 5vw, 80px);
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #dff8ff;
+  background: linear-gradient(180deg, #ffffff 0%, #c8f3ff 45%, #6fd6ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 10px rgba(55, 215, 255, 0.75)) drop-shadow(0 0 28px rgba(47, 139, 255, 0.45));
+}
+
+/* ── Opponent panel ─────────────────────────────────────── */
+
+/*
+ * Chamfered corners: the outer element is the 1px border (its
+ * gradient background shows around the inset inner element),
+ * both clipped to the same octagon.
+ */
+.opponent-panel {
+  --cut: 14px;
+  width: min(572px, 100%);
+  padding: 1px;
+  clip-path: polygon(
+    var(--cut) 0,
+    calc(100% - var(--cut)) 0,
+    100% var(--cut),
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    var(--cut) 100%,
+    0 calc(100% - var(--cut)),
+    0 var(--cut)
+  );
+  background: linear-gradient(180deg, rgba(120, 150, 255, 0.45), rgba(120, 150, 255, 0.12));
+}
+
+.opponent-panel-inner {
+  margin: 0;
+  min-width: 0;
+  border: 0;
+  display: grid;
+  gap: 8px;
+  padding: 12px clamp(12px, 2.4vw, 28px) 12px;
+  clip-path: inherit;
+  background: rgba(9, 12, 26, 0.82);
+  backdrop-filter: blur(6px);
+  text-align: left;
+}
+
+.opponent-legend {
+  /* Take the legend out of the fieldset border so it lays out like a normal row. */
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: #cfeaff;
+}
+
+.opponent-legend::before {
+  content: '';
+  width: 12px;
+  height: 1px;
+  background: rgba(207, 234, 255, 0.5);
+}
+
+.opponent {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: 18px;
+  min-height: 60px;
+  padding: 8px 20px;
+  border: 1px solid rgba(140, 160, 230, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.opponent:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(140, 160, 230, 0.26);
+}
+
+.opponent.is-selected {
+  border-color: rgba(255, 60, 140, 0.8);
+  background: linear-gradient(90deg, rgba(255, 46, 136, 0.2), rgba(255, 46, 136, 0.07));
+  box-shadow:
+    0 0 18px rgba(255, 46, 136, 0.25),
+    inset 0 0 16px rgba(255, 46, 136, 0.12);
+}
+
+.opponent:has(.opponent-input:focus-visible) {
+  outline: 2px solid var(--menu-cyan);
+  outline-offset: 2px;
+}
+
+/* The native radio stays in the DOM for keyboard and screen readers, just invisible. */
+.opponent-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.opponent-radio {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #8e97bd;
+  display: grid;
+  place-items: center;
+}
+
+.opponent.is-selected .opponent-radio {
+  border-color: var(--menu-pink);
+  box-shadow: 0 0 10px rgba(255, 46, 136, 0.6);
+}
+
+.opponent.is-selected .opponent-radio::after {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff5aa2;
+  box-shadow: 0 0 8px var(--menu-pink);
+}
+
+.opponent-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.opponent-name {
+  font-weight: 700;
+  font-size: 19px;
+  color: var(--menu-text);
+}
+
+.opponent-desc {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--menu-muted);
+}
+
+.opponent-meter {
+  display: flex;
+  gap: 4px;
+}
+
+.opponent-bar {
+  width: 10px;
+  height: 12px;
+  transform: skewX(-22deg);
+  background: rgba(200, 210, 240, 0.18);
+}
+
+.opponent-bar.is-filled {
+  background: #d6e6ff;
+  box-shadow: 0 0 5px rgba(150, 190, 255, 0.6);
+}
+
+.opponent.is-selected .opponent-bar.is-filled {
+  background: #ff3d8f;
+  box-shadow: 0 0 6px rgba(255, 46, 136, 0.8);
+}
+
+/* ── Play button ────────────────────────────────────────── */
+
+.menu-play-row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: clamp(16px, 3vh, 26px);
+}
+
+.menu-play {
+  position: relative;
+  width: min(544px, 100%);
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  border: 2px solid var(--menu-cyan);
+  border-radius: 6px;
+  background: linear-gradient(180deg, #0f4a5c 0%, #0a2f3d 55%, #082431 100%);
+  color: #f2fbff;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow:
+    0 0 14px rgba(55, 215, 255, 0.7),
+    0 0 36px rgba(55, 215, 255, 0.35),
+    inset 0 0 18px rgba(55, 215, 255, 0.25);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.2s ease;
+}
+
+/*
+ * Centre-circle flares peeking out at each end of the button:
+ * blue on the player's side, pink on the AI's. They're siblings
+ * placed behind the button (not its pseudo-elements), so hover and
+ * press effects can't bring them in front of the button face.
+ */
+.menu-play-flare {
+  --half-button: min(272px, 50%);
+  position: absolute;
+  top: 50%;
+  width: 70px;
+  height: 30px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+}
+
+.menu-play-flare.is-left {
+  left: calc(50% - var(--half-button) - 34px);
+  border: 2px solid rgba(47, 139, 255, 0.7);
+  box-shadow: 0 0 12px rgba(47, 139, 255, 0.6);
+}
+
+.menu-play-flare.is-right {
+  right: calc(50% - var(--half-button) - 34px);
+  border: 2px solid rgba(255, 46, 136, 0.75);
+  box-shadow: 0 0 12px rgba(255, 46, 136, 0.6);
+}
+
+.menu-play:hover {
+  background: linear-gradient(180deg, #13596d 0%, #0c3a4a 55%, #0a2c3a 100%);
+  box-shadow:
+    0 0 18px rgba(55, 215, 255, 0.85),
+    0 0 48px rgba(55, 215, 255, 0.45),
+    inset 0 0 22px rgba(55, 215, 255, 0.3);
+}
+
+.menu-play:active {
+  transform: translateY(1px);
+}
+
+.menu-play:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+}
+
+.menu-play-chevron {
+  width: 11px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── How to play + hints ────────────────────────────────── */
+
+.menu-how {
+  margin-top: clamp(12px, 2.2vh, 20px);
+  display: inline-flex;
+  align-items: center;
+  gap: 32px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #d8def8;
+  cursor: pointer;
+}
+
+.menu-how::before,
+.menu-how::after {
+  content: '';
+  width: 78px;
+  height: 1px;
+  background: rgba(190, 200, 240, 0.35);
+}
+
+.menu-how:hover {
+  color: #fff;
+}
+
+.menu-how:focus-visible {
+  outline: 2px solid var(--menu-cyan);
+  outline-offset: 4px;
+}
+
+.menu-hints {
+  margin-top: clamp(18px, 4.4vh, 48px);
+}
+
+.menu-help {
+  width: min(440px, 100%);
+}
+
+.menu-help-list {
+  margin: 16px 0 0;
+  padding-left: 20px;
+  text-align: left;
+  color: var(--menu-muted);
+  line-height: 1.45;
+}
+
+.menu-help-list li + li {
+  margin-top: 6px;
+}
+
+/* ── Smaller screens ────────────────────────────────────── */
+
+@media (max-width: 700px) {
+  .opponent-legend {
+    letter-spacing: 0.26em;
+    font-size: 12px;
+  }
+
+  .opponent {
+    column-gap: 12px;
+    padding: 10px 12px;
+  }
+
+  .opponent-name {
+    font-size: 17px;
+  }
+
+  .opponent-desc {
+    font-size: 14px;
+  }
+
+  .opponent-bar {
+    width: 6px;
+    height: 9px;
+  }
+
+  .menu-play-flare {
+    display: none;
+  }
+
+  .menu-how::before,
+  .menu-how::after {
+    width: 36px;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 701px) {
+  .opponent {
+    min-height: 54px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .menu-hints {
+    margin-top: 18px;
+  }
+}

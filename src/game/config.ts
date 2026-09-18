@@ -1,7 +1,7 @@
 export const TABLE = {
   width: 480,
   height: 800,
-  goalWidth: 170,
+  goalWidth: 190,
   goalDepth: 36,
 };
 
@@ -42,13 +42,13 @@ export const PUCK = {
 };
 
 export const PADDLE = {
-  radius: 32,
+  radius: 40,
   playerMaxSpeed: 3000,
   homeOffset: 90,
 };
 
 export const RULES = {
-  winningScore: 7,
+  winningScore: 5,
   countdownSeconds: 3,
   goalPauseSeconds: 1.5,
   hitDebounceSeconds: 0.15,

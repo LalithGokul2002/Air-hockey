@@ -1,0 +1,71 @@
+.control-hints {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  row-gap: 12px;
+}
+
+.control-hints li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #b9c2e2;
+}
+
+.control-hints li + li {
+  border-left: 1px solid rgba(190, 200, 240, 0.25);
+}
+
+.control-hint-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: #9fb2e6;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Tighten up before the row would wrap and strand a divider on its own line. */
+@media (max-width: 1000px) {
+  .control-hints li {
+    gap: 8px;
+    padding: 0 12px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+  }
+
+  .control-hint-icon {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@media (max-width: 700px) {
+  .control-hints {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 8px;
+  }
+
+  .control-hints li {
+    padding: 0;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+  }
+
+  .control-hints li + li {
+    border-left: 0;
+  }
+}

@@ -1,0 +1,117 @@
+/* ── Touch menu (phones and tablets, landscape) ─────────────
+ * Builds on MainMenu.css: same background, title, panel and
+ * button styles, rearranged into two columns.
+ */
+
+.menu--touch {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.touch-menu {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 2.5vh, 24px);
+  /* Keep clear of notches and rounded corners. */
+  padding:
+    max(12px, env(safe-area-inset-top))
+    max(20px, env(safe-area-inset-right))
+    max(10px, env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
+}
+
+.touch-menu-columns {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: clamp(16px, 4vw, 56px);
+  width: min(1100px, 100%);
+  margin: 0 auto;
+}
+
+.touch-menu-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.menu--touch .menu-title {
+  margin-bottom: clamp(12px, 4vh, 36px);
+  font-size: clamp(24px, 4.6vw, 64px);
+}
+
+.menu--touch .menu-play-row {
+  margin-top: 0;
+}
+
+.menu--touch .menu-play {
+  height: clamp(50px, 12vh, 68px);
+  font-size: clamp(20px, 3.4vh, 26px);
+}
+
+/* The flares would spill into the opponent column. */
+.menu--touch .menu-play-flare {
+  display: none;
+}
+
+.menu--touch .menu-how {
+  margin-top: clamp(8px, 2.5vh, 20px);
+  min-height: 44px;
+}
+
+.touch-menu-opponents {
+  width: 100%;
+  justify-self: center;
+  max-width: 560px;
+}
+
+/* Bigger tap targets than the desktop list. */
+.menu--touch .opponent {
+  min-height: 56px;
+}
+
+.touch-menu-hints {
+  flex-shrink: 0;
+}
+
+/* Short landscape phones: squeeze the list so all four rows fit. */
+@media (max-height: 440px) {
+  .menu--touch .opponent-panel-inner {
+    gap: 6px;
+    padding: 8px 14px;
+  }
+
+  .menu--touch .opponent-legend {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+  }
+
+  .menu--touch .opponent {
+    min-height: 48px;
+    padding: 5px 14px;
+    column-gap: 12px;
+  }
+
+  .menu--touch .opponent-name {
+    font-size: 16px;
+  }
+
+  .menu--touch .opponent-desc {
+    font-size: 13px;
+  }
+
+  .menu--touch .opponent-radio {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (max-height: 360px) {
+  .menu--touch .opponent-desc {
+    display: none;
+  }
+}

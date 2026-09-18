@@ -1,34 +1,59 @@
 import { AI_PROFILES } from '../game/ai/difficulty';
 import { RULES } from '../game/config';
-import type { Difficulty, GameSnapshot } from '../types/game';
+import type { Difficulty, GameSnapshot, Side } from '../types/game';
 import { formatTime } from './format';
 
 interface Props {
   snapshot: GameSnapshot;
   difficulty: Difficulty;
-  onPause: () => void;
 }
 
-export function GameHUD({ snapshot, difficulty, onPause }: Props) {
+/** Desktop score bar. Pausing is keyboard-only (Esc / P), as the hint bar says. */
+export function GameHUD({ snapshot, difficulty }: Props) {
   return (
     <header className="hud">
-      <div className="hud-side hud-ai">
-        <span className="hud-label">AI · {AI_PROFILES[difficulty].label}</span>
-        <span className="hud-score">{snapshot.score.ai}</span>
-      </div>
-
-      <div className="hud-center">
-        <span className="hud-timer">{formatTime(snapshot.elapsed)}</span>
-        <span className="hud-target">First to {RULES.winningScore}</span>
-        <button className="hud-pause" onClick={onPause} aria-label="Pause" disabled={snapshot.state === 'GAME_OVER'}>
-          ❚❚
-        </button>
-      </div>
-
-      <div className="hud-side hud-player">
-        <span className="hud-label">You</span>
-        <span className="hud-score">{snapshot.score.player}</span>
-      </div>
+      <ScoreBlock side="ai" score={snapshot.score.ai} difficulty={difficulty} />
+      <MatchClock elapsed={snapshot.elapsed} />
+      <ScoreBlock side="player" score={snapshot.score.player} difficulty={difficulty} />
     </header>
+  );
+}
+
+interface ScoreBlockProps {
+  side: Side;
+  score: number;
+  difficulty: Difficulty;
+  className?: string;
+}
+
+/** A side's neon score tile plus its label ("AI · Intermediate" or "You"). */
+export function ScoreBlock({ side, score, difficulty, className = '' }: ScoreBlockProps) {
+  const isAi = side === 'ai';
+  return (
+    <div className={`hud-side ${isAi ? 'hud-ai' : 'hud-player'} ${className}`}>
+      <span className="hud-score" aria-label={`${isAi ? 'AI' : 'Your'} score ${score}`}>
+        {score}
+      </span>
+      <span className="hud-label">
+        {isAi ? (
+          <>
+            <span className="hud-label-tag">AI</span>
+            {AI_PROFILES[difficulty].label}
+          </>
+        ) : (
+          'You'
+        )}
+      </span>
+    </div>
+  );
+}
+
+/** Match timer with the target score underneath. */
+export function MatchClock({ elapsed, className = '' }: { elapsed: number; className?: string }) {
+  return (
+    <div className={`hud-center ${className}`}>
+      <span className="hud-timer">{formatTime(elapsed)}</span>
+      <span className="hud-target">First to {RULES.winningScore}</span>
+    </div>
   );
 }

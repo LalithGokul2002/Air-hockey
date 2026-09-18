@@ -33,7 +33,7 @@ import type {
 } from './physics/CollisionSystem';
 
 import { PhysicsEngine } from './physics/PhysicsEngine';
-import { Renderer } from './rendering/Renderer';
+import { Renderer, type TableOrientation } from './rendering/Renderer';
 
 type Listener =
   (snapshot: GameSnapshot) => void;
@@ -175,12 +175,16 @@ export class GameEngine {
   constructor(
     canvas: HTMLCanvasElement,
     difficulty: Difficulty,
+    orientation: TableOrientation = 'portrait',
   ) {
     const profile =
       AI_PROFILES[difficulty];
 
     this.renderer =
-      new Renderer(canvas);
+      new Renderer(
+        canvas,
+        orientation,
+      );
 
     this.input =
       new InputManager(
@@ -384,13 +388,12 @@ export class GameEngine {
     switch (this.state) {
 
       case 'COUNTDOWN': {
-        this.physics.step(
-          this.puck,
-          this.paddles,
-          dt,
-          false,
-        );
-
+        /*
+         * Everything is frozen until GO: no physics step,
+         * so both paddles stay on their home spots. The
+         * player's paddle starts chasing the pointer as
+         * soon as play begins.
+         */
         this.stateTimer -= dt;
 
         if (

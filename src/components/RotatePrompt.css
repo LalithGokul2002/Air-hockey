@@ -1,0 +1,59 @@
+.rotate-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 0%, rgba(255, 45, 75, 0.18), transparent 70%),
+    radial-gradient(ellipse 70% 40% at 50% 100%, rgba(34, 211, 238, 0.16), transparent 70%),
+    #05060d;
+  user-select: none;
+}
+
+.rotate-prompt-phone {
+  width: 96px;
+  height: 96px;
+  margin-bottom: 8px;
+  fill: none;
+  stroke: var(--player);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.7));
+  animation: rotate-hint 2.4s ease-in-out infinite;
+}
+
+@keyframes rotate-hint {
+  0%,
+  20% {
+    transform: rotate(0deg);
+  }
+  50%,
+  75% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.rotate-prompt-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #eef6ff;
+}
+
+.rotate-prompt-text {
+  margin: 0;
+  font-size: 17px;
+  color: var(--muted);
+}
